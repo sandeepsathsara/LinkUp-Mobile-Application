@@ -1,0 +1,37 @@
+name: linkup
+description: "A new Flutter project."
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  google_fonts: ^4.0.4 # Corrected placement
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/profile.jpg
+    - assets/logo.png
+    - assets/march.png
+    - assets/tech.png
+    - assets/data.png
+    - assets/map.png
+    - assets/large.png
+    - assets/notifi.png
+    - assets/about.png
+    
