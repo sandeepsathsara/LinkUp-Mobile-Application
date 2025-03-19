@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:linkup/explore_screen.dart';
+import 'package:linkup/explore_screen.dart'; // Import ExplorePage
 import 'package:linkup/notification_screen.dart';
 import 'package:linkup/profile_screen.dart';
 import 'package:linkup/event_detail_screen.dart';
@@ -161,7 +161,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             GestureDetector(
               onTap: () {
-                // Add functionality for View More
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ExplorePage(),
+                  ), // Navigate to ExplorePage
+                );
               },
               child: Text(
                 "View More",
@@ -263,7 +268,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             GestureDetector(
               onTap: () {
-                // Add navigation or functionality for View More
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ExplorePage(),
+                  ), // Navigate to ExplorePage
+                );
               },
               child: Text(
                 "View More",
