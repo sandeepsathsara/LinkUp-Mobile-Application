@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
-import 'explore_screen.dart';
+import 'package:linkup/home_screen.dart';
+import 'package:linkup/explore_screen.dart';
+import 'package:linkup/profile_screen.dart'; // Import ProfileScreen
 
 class EventMapScreen extends StatelessWidget {
   const EventMapScreen({super.key});
@@ -20,11 +21,18 @@ class EventMapScreen extends StatelessWidget {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         actions: [
-          CircleAvatar(
-            backgroundImage: AssetImage(
-              'assets/profile.jpg',
-            ), // Placeholder profile image
-            radius: 18,
+          IconButton(
+            icon: const CircleAvatar(
+              backgroundImage: AssetImage('assets/profile.jpg'),
+              radius: 18,
+            ),
+            onPressed: () {
+              // Navigate to ProfileScreen when the avatar is clicked
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+            },
           ),
           const SizedBox(width: 10),
         ],
@@ -40,15 +48,6 @@ class EventMapScreen extends StatelessWidget {
                 child: Stack(
                   children: [
                     Positioned.fill(child: Image.asset('assets/large.png')),
-                    /* const Positioned(
-                      top: 100,
-                      left: 50,
-                      child: Icon(
-                        Icons.location_pin,
-                        color: Colors.red,
-                        size: 60,
-                      ),
-                    ), */
                   ],
                 ),
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'event_map_screeen.dart';
 import 'notification_screen.dart';
+import 'home_screen.dart'; // Import HomeScreen here
 
 class ExplorePage extends StatelessWidget {
   const ExplorePage({super.key});
@@ -27,8 +28,14 @@ class ExplorePage extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         onTap: (index) {
-          if (index == 1) {
-            Navigator.push(
+          if (index == 0) {
+            // Navigate to Home Screen
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          } else if (index == 1) {
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const ExplorePage()),
             );
