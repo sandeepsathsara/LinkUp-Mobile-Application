@@ -5,6 +5,8 @@ import 'explore_screen.dart';
 import 'notification_screen.dart';
 
 class RatingPage extends StatefulWidget {
+  const RatingPage({super.key});
+
   @override
   _RatingPageState createState() => _RatingPageState();
 }
@@ -12,7 +14,7 @@ class RatingPage extends StatefulWidget {
 class _RatingPageState extends State<RatingPage> {
   int _currentIndex = 0;
   int _rating = 5;
-  TextEditingController _feedbackController = TextEditingController();
+  final TextEditingController _feedbackController = TextEditingController();
 
   void _onTabTapped(int index) {
     setState(() {
@@ -155,14 +157,6 @@ class _RatingPageState extends State<RatingPage> {
                   "Rating: $_rating, Feedback: ${_feedbackController.text}",
                 );
               },
-              child: Text(
-                "Submit",
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
                 padding: const EdgeInsets.symmetric(
@@ -171,6 +165,14 @@ class _RatingPageState extends State<RatingPage> {
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                "Submit",
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),
