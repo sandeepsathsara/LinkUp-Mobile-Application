@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'favourite_screen.dart'; // Ensure this is correctly imported
+import 'rating_screen.dart'; // Ensure this is correctly imported
 
 class EventDetailScreen extends StatefulWidget {
   const EventDetailScreen({super.key});
@@ -169,12 +170,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  /// Builds Register Button
   Widget _buildRegisterButton() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RatingPage(),
+            ), // Navigate to RatingPage
+          );
+        },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.blueAccent,
           shape: RoundedRectangleBorder(

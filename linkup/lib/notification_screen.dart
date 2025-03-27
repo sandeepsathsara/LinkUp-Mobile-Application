@@ -13,7 +13,7 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
-  int _currentIndex = 3; // Active tab (Notifications)
+  final int _currentIndex = 3; // Active tab (Notifications)
 
   void _onTabTapped(int index) {
     if (index == _currentIndex) return; // Prevent duplicate navigation
