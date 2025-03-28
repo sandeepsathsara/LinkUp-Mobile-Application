@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:linkup/welcome.dart';
+import 'edit_event_screen.dart';
 
 class OrganizerEventList extends StatelessWidget {
   const OrganizerEventList({super.key});
@@ -34,16 +34,17 @@ class OrganizerEventList extends StatelessWidget {
         padding: const EdgeInsets.all(15.0),
         child: Column(
           children: [
-            _buildEventCard(),
+            _buildEventCard(context), // Pass context
             const SizedBox(height: 15),
-            _buildEventCard(),
+            _buildEventCard(context), // Pass context
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEventCard() {
+  Widget _buildEventCard(BuildContext context) {
+    // Accept context here
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(15),
@@ -96,11 +97,64 @@ class OrganizerEventList extends StatelessWidget {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.white),
-                        onPressed: () {},
+                        onPressed: () {
+                          Navigator.push(
+                            context, // Use context here
+                            MaterialPageRoute(
+                              builder: (context) => const EditEventScreen(),
+                            ),
+                          );
+                        },
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {},
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text(
+                                  'DELETE CONFIRMATION',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                content: const Text(
+                                  'ARE YOU SURE YOU WANT TO DELETE EVENT?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(
+                                        context,
+                                      ).pop(); // Close dialog
+                                    },
+                                    child: const Text(
+                                      'CANCEL',
+                                      style: TextStyle(color: Colors.black),
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    onPressed: () {
+                                      // Perform delete action here
+                                      Navigator.of(
+                                        context,
+                                      ).pop(); // Close dialog after deletion
+                                    },
+                                    child: const Text(
+                                      'DELETE',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
                       ),
                     ],
                   ),

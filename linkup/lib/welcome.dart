@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
-import 'welcome.dart';
 import 'organizer/event.dart';
 
 class WelcomeToLinkUp extends StatelessWidget {
