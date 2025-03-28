@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:linkup/explore_screen.dart';
-import 'package:linkup/home_screen.dart';
-import 'package:linkup/profile_screen.dart';
-import 'package:linkup/event_detail_screen.dart'; // Import Event Detail Screen
+import 'package:linkup/user/explore_screen.dart';
+import 'package:linkup/user/home_screen.dart';
+import 'package:linkup/user/profile_screen.dart';
+import 'package:linkup/user/event_detail_screen.dart'; // Import Event Detail Screen
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});

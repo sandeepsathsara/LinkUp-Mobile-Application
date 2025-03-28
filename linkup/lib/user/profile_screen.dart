@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:linkup/explore_screen.dart';
-import 'package:linkup/home_screen.dart';
-import 'package:linkup/notification_screen.dart';
-import 'package:linkup/edit_profile_screen.dart';
-import 'package:linkup/about_app_screen.dart';
-import 'package:linkup/favourite_screen.dart';
-import 'package:linkup/splash_screen.dart';
+import 'package:linkup/user/explore_screen.dart';
+import 'package:linkup/user/home_screen.dart';
+import 'package:linkup/user/notification_screen.dart';
+import 'package:linkup/user/edit_profile_screen.dart';
+import 'package:linkup/user/about_app_screen.dart';
+import 'package:linkup/user/favourite_screen.dart';
+import 'package:linkup/user/splash_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});

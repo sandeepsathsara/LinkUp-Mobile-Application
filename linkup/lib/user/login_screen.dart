@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:linkup/home_screen.dart';
-import 'package:linkup/signup_page.dart';
+import 'package:linkup/user/home_screen.dart';
+import 'package:linkup/user/signup_page.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});

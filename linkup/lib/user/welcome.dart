@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
-import 'organizer/event.dart';
+import '../organizer/event.dart';
 
 class WelcomeToLinkUp extends StatelessWidget {
   const WelcomeToLinkUp({super.key});

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:linkup/welcome.dart';
+import 'package:linkup/user/welcome.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

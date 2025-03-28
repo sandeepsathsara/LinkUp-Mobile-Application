@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:linkup/explore_screen.dart'; // Import ExplorePage
-import 'package:linkup/notification_screen.dart';
-import 'package:linkup/profile_screen.dart';
-import 'package:linkup/event_detail_screen.dart';
+import 'package:linkup/user/explore_screen.dart'; // Import ExplorePage
+import 'package:linkup/user/notification_screen.dart';
+import 'package:linkup/user/profile_screen.dart';
+import 'package:linkup/user/event_detail_screen.dart';
 
 void main() {
   runApp(const EventApp());

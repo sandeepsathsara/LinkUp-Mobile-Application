@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:linkup/home_screen.dart';
-import 'package:linkup/explore_screen.dart';
-import 'package:linkup/profile_screen.dart'; // Import ProfileScreen
+import 'package:linkup/user/home_screen.dart';
+import 'package:linkup/user/explore_screen.dart';
+import 'package:linkup/user/profile_screen.dart'; // Import ProfileScreen
 
 class EventMapScreen extends StatelessWidget {
   const EventMapScreen({super.key});
