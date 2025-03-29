@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'edit_event_screen.dart';
-import 'event_details_screen.dart'; // Import the event details screen
+import 'event_details_screen.dart';
+import 'profile.dart';
 
-class OrganizerEventList extends StatelessWidget {
+class OrganizerEventList extends StatefulWidget {
   const OrganizerEventList({super.key});
 
-  final List<Map<String, String>> events = const [
+  @override
+  State<OrganizerEventList> createState() => _OrganizerEventListState();
+}
+
+class _OrganizerEventListState extends State<OrganizerEventList> {
+  List<Map<String, String>> events = [
     {
       'date': '05 March 2025',
       'title':
@@ -41,9 +47,19 @@ class OrganizerEventList extends StatelessWidget {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 15.0),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundImage: AssetImage('assets/profile.jpg'),
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
+                );
+              },
+              child: const CircleAvatar(
+                radius: 18,
+                backgroundImage: AssetImage('assets/profile.jpg'),
+              ),
             ),
           ),
         ],
@@ -133,7 +149,7 @@ class OrganizerEventList extends StatelessWidget {
                         IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
                           onPressed: () {
-                            _showDeleteDialog(context);
+                            _showDeleteDialog(context, event);
                           },
                         ),
                       ],
@@ -148,7 +164,7 @@ class OrganizerEventList extends StatelessWidget {
     );
   }
 
-  void _showDeleteDialog(BuildContext context) {
+  void _showDeleteDialog(BuildContext context, Map<String, String> event) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -157,7 +173,7 @@ class OrganizerEventList extends StatelessWidget {
             'DELETE CONFIRMATION',
             style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
           ),
-          content: const Text('ARE YOU SURE YOU WANT TO DELETE EVENT?'),
+          content: const Text('ARE YOU SURE YOU WANT TO DELETE THIS EVENT?'),
           actions: [
             TextButton(
               onPressed: () {
@@ -171,6 +187,9 @@ class OrganizerEventList extends StatelessWidget {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () {
+                setState(() {
+                  events.remove(event);
+                });
                 Navigator.of(context).pop();
               },
               child: const Text(
