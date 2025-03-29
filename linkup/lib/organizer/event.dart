@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'edit_event_screen.dart';
+import 'update_event_screen.dart';
 import 'event_details_screen.dart';
 import 'profile.dart';
 
@@ -11,6 +11,8 @@ class OrganizerEventList extends StatefulWidget {
 }
 
 class _OrganizerEventListState extends State<OrganizerEventList> {
+  int _selectedIndex = 0; // Track selected tab
+
   List<Map<String, String>> events = [
     {
       'date': '05 March 2025',
@@ -29,6 +31,25 @@ class _OrganizerEventListState extends State<OrganizerEventList> {
       'image': 'assets/march.png',
     },
   ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    // Navigate based on the selected tab
+    switch (index) {
+      case 0:
+        Navigator.pushNamed(context, '/home'); // Navigate to Home
+        break;
+      case 1:
+        // Current page (Event List), do nothing
+        break;
+      case 2:
+        Navigator.pushNamed(context, '/profile'); // Navigate to Profile
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +91,21 @@ class _OrganizerEventListState extends State<OrganizerEventList> {
           children:
               events.map((event) => _buildEventCard(context, event)).toList(),
         ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.black,
+        unselectedItemColor: Colors.grey,
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.add_circle, size: 40),
+            label: '', // Central floating button
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
       ),
     );
   }
