@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'update_event_screen.dart';
 import 'event_details_screen.dart';
 import 'profile.dart';
+import 'add_event.dart';
 
 class OrganizerEventList extends StatefulWidget {
   const OrganizerEventList({super.key});
@@ -39,16 +40,34 @@ class _OrganizerEventListState extends State<OrganizerEventList> {
 
     switch (index) {
       case 0:
-        Navigator.pushNamed(context, '/home');
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) =>
+                    const OrganizerEventList(), // Navigate to Home screen
+          ),
+        );
         break;
       case 1:
-        Navigator.pushNamed(
+        Navigator.push(
           context,
-          '/add_event',
-        ); // Navigate to Add Event page
+          MaterialPageRoute(
+            builder:
+                (context) =>
+                    const AddEventScreen(), // Navigate to Add Event screen
+          ),
+        );
         break;
       case 2:
-        Navigator.pushNamed(context, '/profile');
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) =>
+                    const ProfileScreen(), // Navigate to Profile screen
+          ),
+        );
         break;
     }
   }
