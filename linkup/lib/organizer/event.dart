@@ -37,16 +37,18 @@ class _OrganizerEventListState extends State<OrganizerEventList> {
       _selectedIndex = index;
     });
 
-    // Navigate based on the selected tab
     switch (index) {
       case 0:
-        Navigator.pushNamed(context, '/home'); // Navigate to Home
+        Navigator.pushNamed(context, '/home');
         break;
       case 1:
-        // Current page (Event List), do nothing
+        Navigator.pushNamed(
+          context,
+          '/add_event',
+        ); // Navigate to Add Event page
         break;
       case 2:
-        Navigator.pushNamed(context, '/profile'); // Navigate to Profile
+        Navigator.pushNamed(context, '/profile');
         break;
     }
   }
