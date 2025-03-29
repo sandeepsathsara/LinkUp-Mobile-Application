@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
-import 'organizer/event.dart';
+import 'package:linkup/organizer/org_login.dart';
+// Import the OrgLoginScreen
 
 class WelcomeToLinkUp extends StatelessWidget {
   const WelcomeToLinkUp({super.key});
@@ -74,9 +75,7 @@ class WelcomeToLinkUp extends StatelessWidget {
                         () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder:
-                                (context) =>
-                                    const OrganizerEventList(), // FIXED
+                            builder: (context) => const OrgLoginScreen(),
                           ),
                         ),
                   ),
