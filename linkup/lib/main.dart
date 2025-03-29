@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'splash_screen.dart';
+import 'user/splash_screen.dart';
 // ✅ Import this file
 
 void main() {
@@ -14,7 +14,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'LinkUp',
-      home: SplashScreen(), // ✅ Now this will work
+      home: SplashScreen(),
     );
   }
 }
