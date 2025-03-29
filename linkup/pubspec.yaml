@@ -13,9 +13,24 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
+<<<<<<< HEAD
   google_fonts: ^4.0.4
   image_picker: ^1.0.7 
   shared_preferences: ^2.5.3
+=======
+  google_fonts: ^4.0.4 # Corrected placement
+  firebase_core: ^3.12.1
+  firebase_auth: ^5.5.1
+  cloud_firestore: ^5.6.5
+  cloudinary_url_gen: ^1.0.0
+  cloudinary_api: ^1.0.0
+  dio: ^5.8.0+1
+  image_picker: ^1.1.2
+  flutter_dotenv: ^5.2.1
+  cached_network_image: ^3.4.1
+  shared_preferences: ^2.5.3
+  change_app_package_name: ^1.0.0
+>>>>>>> a2380e7321f7bf3c466a08c07c9412d4f77de2a7
 
 dev_dependencies:
   flutter_test:

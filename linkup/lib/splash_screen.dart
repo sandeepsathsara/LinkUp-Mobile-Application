@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:linkup/welcome.dart';
+import 'package:linkup/home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,12 +15,25 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(Duration(seconds: 3), () {
+    Timer(const Duration(seconds: 3), _checkLoginStatus);
+  }
+
+  void _checkLoginStatus() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      // User is signed in, navigate to HomeScreen
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => WelcomeToLinkUp()),
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
-    });
+    } else {
+      // User not signed in, navigate to Welcome page
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const WelcomeToLinkUp()),
+      );
+    }
   }
 
   @override

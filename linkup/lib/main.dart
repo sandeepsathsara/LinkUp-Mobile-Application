@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'user/splash_screen.dart';
-// ✅ Import this file
+import 'package:firebase_core/firebase_core.dart';
+import 'splash_screen.dart';
 
-void main() {
-  runApp(MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -14,7 +16,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'LinkUp',
-      home: SplashScreen(),
+      home: const SplashScreen(),
     );
   }
 }
