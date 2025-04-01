@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:linkup/welcome.dart';
 import 'package:linkup/home_screen.dart';
+import 'package:linkup/organizer/event.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,26 +14,57 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   @override
   void initState() {
     super.initState();
     Timer(const Duration(seconds: 3), _checkLoginStatus);
   }
 
-  void _checkLoginStatus() {
-    final user = FirebaseAuth.instance.currentUser;
+  Future<void> _checkLoginStatus() async {
+    final user = _auth.currentUser;
 
     if (user != null) {
-      // User is signed in, navigate to HomeScreen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+      try {
+        // Try checking in "organizers" collection first
+        final orgSnap = await _firestore.collection("organizers").doc(user.uid).get();
+        if (orgSnap.exists && orgSnap.data()?['role'] == 'organizer') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const OrganizerEventList()),
+          );
+          return;
+        }
+
+        // If not organizer, check in "users" (optional if you store user roles there)
+        final userSnap = await _firestore.collection("users").doc(user.uid).get();
+        if (userSnap.exists && userSnap.data()?['role'] == 'user') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+          return;
+        }
+
+        // Default fallback to HomeScreen if no role found
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } catch (e) {
+        debugPrint("Role check error: $e");
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const WelcomeToLinkUp()),
+        );
+      }
     } else {
-      // User not signed in, navigate to Welcome page
+      // Not logged in
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const WelcomeToLinkUp()),
+        MaterialPageRoute(builder: (_) => const WelcomeToLinkUp()),
       );
     }
   }
@@ -40,14 +73,14 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.blue.shade700,
-      body: Center(
+      body: const Center(
         child: Text(
           'LinkUp',
           style: TextStyle(
             fontSize: 40,
             color: Colors.white,
-            fontFamily: 'YourCustomFont', // Add custom font if needed
             fontWeight: FontWeight.bold,
+            fontFamily: 'YourCustomFont',
           ),
         ),
       ),

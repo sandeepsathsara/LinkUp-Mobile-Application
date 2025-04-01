@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
-import 'organizer/event.dart';
+import 'organizer/org_login.dart'; // ✅ Make sure this path is correct!
 
 class WelcomeToLinkUp extends StatelessWidget {
   const WelcomeToLinkUp({super.key});
@@ -10,18 +11,18 @@ class WelcomeToLinkUp extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-          // Gradient Background
+          // 🌈 Gradient Background
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF1976D2), Colors.white], // Professional Blue
+                colors: [Color(0xFF1976D2), Colors.white],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
             ),
           ),
 
-          // White Curved Section
+          // 🤝 Foreground Bottom Card
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -48,69 +49,54 @@ class WelcomeToLinkUp extends StatelessWidget {
                   ),
                   const SizedBox(height: 30),
 
-                  // User Button with Icon
+                  // 👤 User Button
                   _buildRoleButton(
                     context,
                     icon: Icons.person,
                     label: 'User',
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginScreen(),
-                          ),
-                        ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    ),
                   ),
 
                   const SizedBox(height: 30),
 
-                  // Organizer Button with Icon
-                  // Organizer Button with Icon
+                  // 🧑‍💼 Organizer Button
                   _buildRoleButton(
                     context,
                     icon: Icons.business_center,
                     label: 'Organizer',
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) =>
-                                    const OrganizerEventList(), // FIXED
-                          ),
-                        ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const OrgLoginScreen()), // ✅ FIXED class name
+                    ),
                   ),
                 ],
               ),
             ),
           ),
 
-          // Logo & Welcome Text
+          // 🔷 Logo + Welcome Text
           Positioned(
             top: MediaQuery.of(context).size.height * 0.15,
             left: 0,
             right: 0,
             child: Column(
               children: [
-                // App Logo inside a Circle Avatar
                 CircleAvatar(
-                  radius: 50, // Adjust size as needed
-                  backgroundColor:
-                      Colors.white, // Background color for contrast
+                  radius: 50,
+                  backgroundColor: Colors.white,
                   child: ClipOval(
                     child: Image.asset(
-                      'assets/logo.png', // Add your logo image here
+                      'assets/logo.png',
                       width: 90,
                       height: 90,
-                      fit:
-                          BoxFit
-                              .cover, // Ensures the image fits within the circle
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Welcome Text
                 const Text(
                   'Welcome to',
                   style: TextStyle(
@@ -135,13 +121,13 @@ class WelcomeToLinkUp extends StatelessWidget {
     );
   }
 
-  // Helper function to create role selection buttons
+  // 🛠️ Button Builder
   Widget _buildRoleButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
+      BuildContext context, {
+        required IconData icon,
+        required String label,
+        required VoidCallback onTap,
+      }) {
     return Column(
       children: [
         Icon(icon, size: 60, color: Colors.blue.shade700),

@@ -24,6 +24,9 @@ dependencies:
   flutter_dotenv: ^5.2.1
   cached_network_image: ^3.4.1
   shared_preferences: ^2.5.3
+  mapbox_maps_flutter: ^2.7.0
+  intl: ^0.20.2
+  url_launcher: ^6.3.1
   change_app_package_name: ^1.0.0
 
 dev_dependencies:
@@ -45,4 +48,5 @@ flutter:
     - assets/large.png
     - assets/notifi.png
     - assets/about.png
+    - assets/red_marker.png
     

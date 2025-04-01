@@ -4,6 +4,10 @@ import 'package:linkup/home_screen.dart';
 import 'package:linkup/explore_screen.dart';
 import 'package:linkup/notification_screen.dart';
 import 'package:linkup/profile_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'u_event_details.dart';
 
 class FavouriteScreen extends StatefulWidget {
   const FavouriteScreen({super.key});
@@ -13,11 +17,86 @@ class FavouriteScreen extends StatefulWidget {
 }
 
 class _FavouriteScreenState extends State<FavouriteScreen> {
-  final int _currentIndex = 2; // Set Favorites as the active index
+  final int _currentIndex = 2;
+  String? _profileImageUrl;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _favorites = [];
+  final User? _user = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileImage();
+    _fetchFavorites();
+  }
+
+  Future<void> _loadProfileImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedUrl = prefs.getString('cachedProfileImageUrl');
+    if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      setState(() {
+        _profileImageUrl = cachedUrl;
+      });
+    }
+    if (_user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(_user!.uid).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        if (data['profileImageUrl'] != null) {
+          await prefs.setString('cachedProfileImageUrl', data['profileImageUrl']);
+          setState(() {
+            _profileImageUrl = data['profileImageUrl'];
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _fetchFavorites() async {
+    if (_user == null) return;
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_user!.uid)
+        .collection('favorites')
+        .orderBy('addedAt', descending: true)
+        .get();
+
+    final List<Map<String, dynamic>> favs = [];
+    for (final doc in snapshot.docs) {
+      final favData = doc.data();
+      final eventId = favData['eventId'];
+      if (eventId != null) {
+        final eventDoc = await FirebaseFirestore.instance.collection('events').doc(eventId).get();
+        if (eventDoc.exists) {
+          final eventData = eventDoc.data()!;
+          eventData['id'] = eventDoc.id;
+          favs.add(eventData);
+        }
+      }
+    }
+
+    setState(() {
+      _favorites = favs;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _removeFromFavorites(String eventId) async {
+    if (_user == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_user!.uid)
+        .collection('favorites')
+        .doc(eventId)
+        .delete();
+
+    setState(() {
+      _favorites.removeWhere((event) => event['id'] == eventId);
+    });
+  }
 
   void _onTabTapped(int index) {
-    if (index == _currentIndex) return; // Prevent unnecessary navigation
-
+    if (index == _currentIndex) return;
     Widget destination;
     switch (index) {
       case 0:
@@ -27,7 +106,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
         destination = const ExplorePage();
         break;
       case 2:
-        return; // Already on Favorites
+        return;
       case 3:
         destination = const NotificationScreen();
         break;
@@ -37,7 +116,6 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
       default:
         return;
     }
-
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => destination),
@@ -56,44 +134,41 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: const [
+        actions: [
           Padding(
-            padding: EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: 12),
             child: CircleAvatar(
               radius: 18,
-              backgroundImage: AssetImage('assets/profile.jpg'),
+              backgroundImage: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
+                  ? NetworkImage(_profileImageUrl!)
+                  : const AssetImage('assets/profile.jpg') as ImageProvider,
             ),
           ),
         ],
         elevation: 0,
         backgroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle("Favorites"),
-            _buildFavoriteEventCard(),
-            _buildFavoriteEventCard(),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildSectionTitle("Upcoming Events"),
-                TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    "View More",
-                    style: GoogleFonts.poppins(color: Colors.blueAccent),
-                  ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _favorites.isEmpty
+          ? const Center(child: Text("No favorite events yet."))
+          : ListView.builder(
+        padding: const EdgeInsets.all(15),
+        itemCount: _favorites.length,
+        itemBuilder: (context, index) {
+          final event = _favorites[index];
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => UserEventDetailsScreen(event: event),
                 ),
-              ],
-            ),
-            _buildUpcomingEventTile(),
-            _buildUpcomingEventTile(),
-          ],
-        ),
+              );
+            },
+            child: _buildFavoriteEventCard(event),
+          );
+        },
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -107,28 +182,20 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
           BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Explore'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Alerts',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Alerts'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: GoogleFonts.poppins(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.black,
-      ),
-    );
-  }
+  Widget _buildFavoriteEventCard(Map<String, dynamic> event) {
+    final String name = event['eventName'] ?? 'No Title';
+    final String date = event['date'] ?? 'No Date';
+    final String venue = event['venue'] ?? 'No Venue';
+    final String? imageUrl = event['imageUrl'];
+    final String eventId = event['id'];
 
-  Widget _buildFavoriteEventCard() {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 3,
@@ -138,7 +205,20 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
         children: [
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: Image.asset(
+            child: imageUrl != null && imageUrl.isNotEmpty
+                ? Image.network(
+              imageUrl,
+              width: double.infinity,
+              height: 120,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Image.asset(
+                'assets/march.png',
+                width: double.infinity,
+                height: 120,
+                fit: BoxFit.cover,
+              ),
+            )
+                : Image.asset(
               'assets/march.png',
               width: double.infinity,
               height: 120,
@@ -151,27 +231,18 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "05 March 2025",
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                  ),
+                  date,
+                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[700]),
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  "International Conference on Cloud Computing and Services Science",
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  name,
+                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  "Colombo, Sri Lanka",
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                  ),
+                  venue,
+                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[700]),
                 ),
               ],
             ),
@@ -180,44 +251,10 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
             alignment: Alignment.bottomRight,
             child: IconButton(
               icon: const Icon(Icons.favorite, color: Colors.red),
-              onPressed: () {},
+              onPressed: () => _removeFromFavorites(eventId),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildUpcomingEventTile() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 3,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(10),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.asset(
-            'assets/march.png',
-            width: 55,
-            height: 55,
-            fit: BoxFit.cover,
-          ),
-        ),
-        title: Text(
-          "02 May 2025",
-          style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[700]),
-        ),
-        subtitle: Text(
-          "International Conference on Computer Systems Engineering and Technology",
-          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: Colors.grey,
-        ),
-        onTap: () {},
       ),
     );
   }

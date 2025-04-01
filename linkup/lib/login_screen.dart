@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'signup_page.dart';
 
@@ -17,6 +18,13 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isLoading = false;
   bool _obscurePassword = true;
 
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  void showSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void signInUser() async {
     final email = emailController.text.trim();
     final password = passwordController.text;
@@ -26,18 +34,33 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    try {
-      setState(() => isLoading = true);
-      await FirebaseAuth.instance.app;
+    setState(() => isLoading = true);
 
-      UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: password);
+    try {
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
       User? user = userCredential.user;
+
       if (user != null) {
-        Navigator.pushReplacement(
+        // 🔍 Check if this user is in the 'organizers' collection
+        DocumentSnapshot orgDoc =
+        await _firestore.collection('organizers').doc(user.uid).get();
+
+        if (orgDoc.exists) {
+          // 🚫 Prevent login for organizers
+          await _auth.signOut();
+          showSnackbar("This account belongs to an organizer. Please use the organizer sign in.");
+          return;
+        }
+
+        // ✅ Allowed user - proceed
+        Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+              (route) => false,
         );
       }
     } on FirebaseAuthException catch (e) {
@@ -51,16 +74,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   void _navigateToSignUp(BuildContext context) {
     Navigator.of(context).push(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-        const SignupPage(),
+        pageBuilder: (context, animation, secondaryAnimation) => const SignupPage(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
@@ -99,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   const SizedBox(height: 90),
                   const Text(
-                    'Hello Manidu!',
+                    'Hello there!',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 26,
@@ -153,9 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             labelText: 'Password',
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
+                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
                               ),
                               onPressed: () {
                                 setState(() {

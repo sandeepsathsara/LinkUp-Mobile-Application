@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:linkup/explore_screen.dart'; // Import ExplorePage
 import 'package:linkup/notification_screen.dart';
 import 'package:linkup/profile_screen.dart';
-import 'package:linkup/event_detail_screen.dart';
+import 'package:linkup/u_event_details.dart';
 
 void main() {
   runApp(const EventApp());
@@ -188,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const EventDetailScreen()),
+          MaterialPageRoute(builder: (context) => const UserEventDetailsScreen(event: {},)),
         );
       },
       child: Container(
@@ -348,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const EventDetailScreen()),
+          MaterialPageRoute(builder: (context) => const UserEventDetailsScreen(event: {},)),
         );
       },
       child: Card(

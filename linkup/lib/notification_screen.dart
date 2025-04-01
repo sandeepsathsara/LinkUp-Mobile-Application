@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:linkup/explore_screen.dart';
 import 'package:linkup/home_screen.dart';
 import 'package:linkup/profile_screen.dart';
-import 'package:linkup/event_detail_screen.dart'; // Import Event Detail Screen
+import 'package:linkup/u_event_details.dart'; // Import Event Detail Screen
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -45,7 +45,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   void _navigateToEventDetail() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const EventDetailScreen()),
+      MaterialPageRoute(builder: (context) => const UserEventDetailsScreen(event: {},)),
     );
   }
 
