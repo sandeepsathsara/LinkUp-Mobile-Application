@@ -7,7 +7,19 @@ import 'package:linkup/profile_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'u_event_details.dart';
+
+/// In‑memory cache to hold the favorites list during the app session.
+class FavoritesCache {
+  static List<Map<String, dynamic>> favorites = [];
+  static bool loaded = false;
+}
+
+/// In‑memory cache for the profile image URL.
+class ProfileCache {
+  static String? profileImageUrl;
+}
 
 class FavouriteScreen extends StatefulWidget {
   const FavouriteScreen({super.key});
@@ -26,26 +38,55 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
   @override
   void initState() {
     super.initState();
+    // Use the in‑memory cache if available.
+    if (ProfileCache.profileImageUrl != null) {
+      _profileImageUrl = ProfileCache.profileImageUrl;
+    }
     _loadProfileImage();
-    _fetchFavorites();
+    // Use cached favorites if available; otherwise, fetch from Firestore.
+    if (FavoritesCache.loaded) {
+      _favorites = FavoritesCache.favorites;
+      _isLoading = false;
+    } else {
+      _fetchFavorites();
+    }
   }
 
   Future<void> _loadProfileImage() async {
+    // First, check if the profile image URL is already in our in‑memory cache.
+    if (ProfileCache.profileImageUrl != null && ProfileCache.profileImageUrl!.isNotEmpty) {
+      setState(() {
+        _profileImageUrl = ProfileCache.profileImageUrl;
+      });
+      // No need to wait further.
+      return;
+    }
+    // Otherwise, load from SharedPreferences.
     final prefs = await SharedPreferences.getInstance();
     final cachedUrl = prefs.getString('cachedProfileImageUrl');
     if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      ProfileCache.profileImageUrl = cachedUrl;
       setState(() {
         _profileImageUrl = cachedUrl;
       });
     }
+    // Fetch from Firestore to update if there’s a newer URL.
     if (_user != null) {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(_user!.uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_user!.uid)
+          .get();
       if (doc.exists) {
         final data = doc.data()!;
-        if (data['profileImageUrl'] != null) {
-          await prefs.setString('cachedProfileImageUrl', data['profileImageUrl']);
+        final firestoreUrl = data['profileImageUrl'];
+        if (firestoreUrl != null &&
+            firestoreUrl is String &&
+            firestoreUrl.isNotEmpty &&
+            firestoreUrl != ProfileCache.profileImageUrl) {
+          await prefs.setString('cachedProfileImageUrl', firestoreUrl);
+          ProfileCache.profileImageUrl = firestoreUrl;
           setState(() {
-            _profileImageUrl = data['profileImageUrl'];
+            _profileImageUrl = firestoreUrl;
           });
         }
       }
@@ -66,7 +107,10 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
       final favData = doc.data();
       final eventId = favData['eventId'];
       if (eventId != null) {
-        final eventDoc = await FirebaseFirestore.instance.collection('events').doc(eventId).get();
+        final eventDoc = await FirebaseFirestore.instance
+            .collection('events')
+            .doc(eventId)
+            .get();
         if (eventDoc.exists) {
           final eventData = eventDoc.data()!;
           eventData['id'] = eventDoc.id;
@@ -74,11 +118,13 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
         }
       }
     }
-
     setState(() {
       _favorites = favs;
       _isLoading = false;
     });
+    // Update the in‑memory cache.
+    FavoritesCache.favorites = favs;
+    FavoritesCache.loaded = true;
   }
 
   Future<void> _removeFromFavorites(String eventId) async {
@@ -93,6 +139,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     setState(() {
       _favorites.removeWhere((event) => event['id'] == eventId);
     });
+    FavoritesCache.favorites = _favorites;
   }
 
   void _onTabTapped(int index) {
@@ -139,8 +186,9 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
             padding: const EdgeInsets.only(right: 12),
             child: CircleAvatar(
               radius: 18,
+              // Use CachedNetworkImageProvider to prevent flicker.
               backgroundImage: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
-                  ? NetworkImage(_profileImageUrl!)
+                  ? CachedNetworkImageProvider(_profileImageUrl!)
                   : const AssetImage('assets/profile.jpg') as ImageProvider,
             ),
           ),
@@ -171,17 +219,38 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
         },
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: 3, // Keep Profile tab highlighted
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: false,
         elevation: 5,
         type: BottomNavigationBarType.fixed,
-        onTap: _onTabTapped,
+        onTap: (index) {
+          if (index == 0) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          } else if (index == 1) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ExplorePage()),
+            );
+          } else if (index == 2) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationScreen()),
+            );
+          } else if (index == 3) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            );
+          }
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Explore'),
+          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Explore'),
           BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Alerts'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],

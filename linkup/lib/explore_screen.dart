@@ -1,43 +1,60 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // For rootBundle
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // For parsing date
+import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+
 import 'event_map_screeen.dart';
 import 'notification_screen.dart';
 import 'home_screen.dart';
-import 'u_event_details.dart'; // Navigate to user event details now
+import 'u_event_details.dart';
+import 'profile_screen.dart';
+import 'tech_dev_events_screen.dart';
+import 'bus_net_events_screen.dart';
 
 class ExplorePage extends StatefulWidget {
-  const ExplorePage({super.key});
+  const ExplorePage({Key? key}) : super(key: key);
 
   @override
   State<ExplorePage> createState() => _ExplorePageState();
 }
 
 class _ExplorePageState extends State<ExplorePage> {
-  static const String _mapboxAccessToken = String.fromEnvironment("MAPBOX_ACCESS_TOKEN");
+  // Controller for flutter_map
+  final MapController _mapController = MapController();
 
-  MapboxMap? _mapboxMap;
-  PointAnnotationManager? _annotationManager;
-  int _selectedIndex = 1; // 'Explore' tab is index 1
+  int _selectedIndex = 2; // 'Explore' tab index
 
-  // Stores events in the current month (for map markers).
+  // In-memory cache for events.
+  List<Map<String, dynamic>> _cachedEvents = [];
+  bool _hasLoadedEvents = false;
+
+  // Stores events in the current month.
   List<Map<String, dynamic>> _eventsInThisMonth = [];
+
+  // Holds search-filtered events.
+  List<Map<String, dynamic>> _filteredEvents = [];
+
+  // Helps update markers only when displayed events change.
+  List<Map<String, dynamic>> _lastDisplayedEvents = [];
 
   // Cache for our custom marker image.
   Uint8List? _markerImage;
 
+  // List of markers for flutter_map.
+  List<Marker> _markers = [];
+
+  // Controller for the search field.
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
-    if (_mapboxAccessToken.isNotEmpty) {
-      MapboxOptions.setAccessToken(_mapboxAccessToken);
-    } else {
-      debugPrint("⚠️ MAPBOX_ACCESS_TOKEN not set. Use --dart-define.");
-    }
     _loadMarkerImage();
   }
 
@@ -55,7 +72,7 @@ class _ExplorePageState extends State<ExplorePage> {
     dateStr = dateStr.trim();
     if (RegExp(r'^\d{2}-\d{2}$').hasMatch(dateStr)) {
       final year = DateTime.now().year;
-      final combined = '$year-$dateStr'; // e.g., "2023-03-31"
+      final combined = '$year-$dateStr';
       try {
         return DateFormat('yyyy-MM-dd').parse(combined);
       } catch (_) {
@@ -76,22 +93,9 @@ class _ExplorePageState extends State<ExplorePage> {
     return dt.year == now.year && dt.month == now.month;
   }
 
-  /// Called once the MapWidget is created.
-  Future<void> _onMapCreated(MapboxMap controller) async {
-    _mapboxMap = controller;
-    _annotationManager = await _mapboxMap!.annotations.createPointAnnotationManager();
-
-    // If events in this month are already available, add markers.
-    if (_eventsInThisMonth.isNotEmpty) {
-      _addMarkersForMonthEvents(_eventsInThisMonth);
-    }
-  }
-
-  /// Clears existing markers and adds new ones for events in the current month.
-  Future<void> _addMarkersForMonthEvents(List<Map<String, dynamic>> events) async {
-    if (_annotationManager == null) return;
-    await _annotationManager!.deleteAll();
-
+  /// Updates markers for the given events.
+  void _updateMarkersForEvents(List<Map<String, dynamic>> events) {
+    List<Marker> markers = [];
     for (final e in events) {
       final dateStr = (e['date'] as String?)?.trim() ?? '';
       final dt = _parseDate(dateStr);
@@ -100,19 +104,50 @@ class _ExplorePageState extends State<ExplorePage> {
         if (location != null && location is GeoPoint) {
           final lat = location.latitude;
           final lng = location.longitude;
-          await _annotationManager!.create(
-            PointAnnotationOptions(
-              geometry: Point(coordinates: Position(lng, lat)),
-              image: _markerImage, // Custom marker image
-              iconSize: 1.3,
+          markers.add(
+            Marker(
+              point: LatLng(lat, lng),
+              width: 40,
+              height: 40,
+              child: _markerImage != null
+                  ? Image.memory(_markerImage!, width: 40, height: 40)
+                  : const Icon(Icons.location_on, color: Colors.red, size: 40),
             ),
           );
         }
       }
     }
+    setState(() {
+      _markers = markers;
+    });
   }
 
-  /// Builds a single event card.
+  /// Search function to filter events and center the map.
+  void _searchAndCenterEvent(String query) {
+    if (_eventsInThisMonth.isEmpty) return;
+
+    final results = _eventsInThisMonth.where((e) {
+      final name = (e['eventName'] as String?)?.toLowerCase().trim() ?? '';
+      return name.contains(query.toLowerCase().trim());
+    }).toList();
+
+    setState(() {
+      _filteredEvents = results;
+    });
+
+    _updateMarkersForEvents(results);
+
+    if (results.isNotEmpty && results.first['location'] is GeoPoint) {
+      final loc = results.first['location'] as GeoPoint;
+      _mapController.move(LatLng(loc.latitude, loc.longitude), 10);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No matching events found.")),
+      );
+    }
+  }
+
+  /// Builds a single event card using CachedNetworkImage.
   Widget _buildEventCard(Map<String, dynamic> event) {
     final String? imageUrl = event['imageUrl'] as String?;
     final String eventName = event['eventName'] ?? 'No Title';
@@ -130,16 +165,22 @@ class _ExplorePageState extends State<ExplorePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Display event image.
+          // Display event image with caching.
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: imageUrl != null && imageUrl.isNotEmpty
-                ? Image.network(
-              imageUrl,
+                ? CachedNetworkImage(
+              imageUrl: imageUrl,
               height: 100,
               width: double.infinity,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Image.asset(
+              placeholder: (_, __) => Image.asset(
+                'assets/march.png',
+                height: 100,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+              errorWidget: (_, __, ___) => Image.asset(
                 'assets/march.png',
                 height: 100,
                 width: double.infinity,
@@ -180,10 +221,10 @@ class _ExplorePageState extends State<ExplorePage> {
   /// Returns an empty widget if there are no events in that category.
   Widget _buildCategorySection(String title, List<Map<String, dynamic>> events) {
     if (events.isEmpty) return const SizedBox();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header.
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(
@@ -198,7 +239,23 @@ class _ExplorePageState extends State<ExplorePage> {
                 ),
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  if (title == 'Tech & Development') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TechDevEventsScreen(),
+                      ),
+                    );
+                  } else if (title == 'Business & Networking') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BusinessNetworkingScreen(),
+                      ),
+                    );
+                  }
+                },
                 child: const Text("View More"),
               ),
             ],
@@ -211,7 +268,7 @@ class _ExplorePageState extends State<ExplorePage> {
             itemCount: events.length,
             itemBuilder: (context, index) {
               final rawEvent = events[index];
-              final docId = rawEvent['id']; // ✅ Use already-attached ID
+              final docId = rawEvent['id'];
               final event = Map<String, dynamic>.from(rawEvent);
               event['id'] = docId;
 
@@ -226,7 +283,6 @@ class _ExplorePageState extends State<ExplorePage> {
                 },
                 child: _buildEventCard(event),
               );
-
             },
           ),
         ),
@@ -236,193 +292,247 @@ class _ExplorePageState extends State<ExplorePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.white.withOpacity(0.95),
-        elevation: 0,
-        title: TextField(
-          decoration: InputDecoration(
-            hintText: "Explore Upcoming Events",
-            prefixIcon: const Icon(Icons.search),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(25),
-              borderSide: BorderSide.none,
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          Navigator.pop(context, true);
+        }
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.white.withOpacity(0.95),
+          elevation: 0,
+          // Live search field.
+          title: TextField(
+            controller: _searchController,
+            onChanged: (value) {
+              if (value.trim().isEmpty) {
+                setState(() {
+                  _filteredEvents.clear();
+                });
+                _updateMarkersForEvents(_eventsInThisMonth);
+              } else {
+                _searchAndCenterEvent(value);
+              }
+            },
+            decoration: InputDecoration(
+              hintText: "Search by Event Name",
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(25),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: Colors.grey[200],
             ),
-            filled: true,
-            fillColor: Colors.grey[200],
           ),
         ),
-      ),
-      body: Stack(
-        children: [
-          // Background map.
-          MapWidget(
-            key: const ValueKey("explore_map"),
-            styleUri: MapboxStyles.MAPBOX_STREETS,
-            textureView: true,
-            cameraOptions: CameraOptions(
-              center: Point(coordinates: Position(80.7718, 7.8731)),
-              zoom: 5.0,
+        body: Stack(
+          children: [
+            FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: LatLng(7.8731, 80.7718),
+                initialZoom: 5.0,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  subdomains: const ['a', 'b', 'c'],
+                ),
+                MarkerLayer(
+                  markers: _markers,
+                ),
+              ],
             ),
-            onMapCreated: _onMapCreated,
-          ),
-          // Foreground DraggableScrollableSheet.
-          DraggableScrollableSheet(
-            initialChildSize: 0.75,
-            minChildSize: 0.3,
-            maxChildSize: 0.95,
-            builder: (context, scrollController) {
-              return SafeArea(
-                top: false,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                    boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10)],
-                  ),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 40,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(10),
+            DraggableScrollableSheet(
+              initialChildSize: 0.75,
+              minChildSize: 0.3,
+              maxChildSize: 0.95,
+              builder: (context, scrollController) {
+                return SafeArea(
+                  top: false,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black26, blurRadius: 10)
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Expanded(
-                        child: StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('events')
-                              .orderBy('createdAt', descending: true)
-                              .snapshots(),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              return Center(child: Text("Error: ${snapshot.error}"));
-                            }
-                            if (snapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
-                            }
-                            if (snapshot.data!.docs.isEmpty) {
-                              return const Center(child: Text("No events found."));
-                            }
-
-                            final docs = snapshot.data!.docs;
-                            final allEvents = docs
-                                .map((doc) {
-                              final data = doc.data() as Map<String, dynamic>;
-                              data['id'] = doc.id; // ✅ Attach the ID here
-                              return data;
-                            })
-                                .toList();
-
-
-                            // Clear and rebuild the events for the current month.
-                            _eventsInThisMonth = [];
-                            final popularNow = <Map<String, dynamic>>[];
-                            final techDev = <Map<String, dynamic>>[];
-                            final business = <Map<String, dynamic>>[];
-
-                            for (final e in allEvents) {
-                              final dateStr = (e['date'] as String?)?.trim() ?? '';
-                              final dt = _parseDate(dateStr);
-                              if (dt != null && _isInThisMonth(dt)) {
-                                _eventsInThisMonth.add(e);
+                        const SizedBox(height: 10),
+                        Expanded(
+                          child: StreamBuilder<QuerySnapshot>(
+                            stream: !_hasLoadedEvents
+                                ? FirebaseFirestore.instance
+                                .collection('events')
+                                .orderBy('createdAt', descending: true)
+                                .snapshots()
+                                : const Stream.empty(),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasError) {
+                                return Center(
+                                    child: Text("Error: ${snapshot.error}"));
                               }
-                              final cat = e['category'] as String? ?? 'Uncategorized';
-                              if (cat == 'Popular') {
-                                popularNow.add(e);
-                              } else if (cat == 'Tech & Development') {
-                                techDev.add(e);
-                              } else if (cat == 'Business & Networking') {
-                                business.add(e);
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                    child: CircularProgressIndicator());
                               }
-                            }
+                              if (!_hasLoadedEvents && snapshot.hasData) {
+                                final docs = snapshot.data!.docs;
+                                _cachedEvents = docs.map((doc) {
+                                  final data = doc.data() as Map<String, dynamic>;
+                                  data['id'] = doc.id;
+                                  return data;
+                                }).toList();
+                                _hasLoadedEvents = true;
+                              }
 
-                            // If annotation manager is ready, add markers.
-                            if (_annotationManager != null) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                _addMarkersForMonthEvents(_eventsInThisMonth);
-                              });
-                            }
+                              // Filter events for current month.
+                              _eventsInThisMonth = _cachedEvents.where((e) {
+                                final dateStr =
+                                    (e['date'] as String?)?.trim() ?? '';
+                                final dt = _parseDate(dateStr);
+                                return dt != null && _isInThisMonth(dt);
+                              }).toList();
 
-                            return ListView(
-                              controller: scrollController,
-                              padding: const EdgeInsets.symmetric(horizontal: 15),
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Explore Events",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
+                              // Determine which events to display.
+                              final toDisplay = _filteredEvents.isNotEmpty
+                                  ? _filteredEvents
+                                  : _eventsInThisMonth;
+
+                              // Update markers if displayed events change.
+                              if (_lastDisplayedEvents.isEmpty ||
+                                  !listEquals(_lastDisplayedEvents, toDisplay)) {
+                                _lastDisplayedEvents = List.from(toDisplay);
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  _updateMarkersForEvents(toDisplay);
+                                });
+                              }
+
+                              return ListView(
+                                controller: scrollController,
+                                padding:
+                                const EdgeInsets.symmetric(horizontal: 15),
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        "Explore Events",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
                                       ),
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (_) => const EventMapScreen()),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.map),
+                                        label: const Text("View Map"),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blueAccent,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+
+                                  // Show filtered results if search is active, otherwise show category cards
+                                  if (_filteredEvents.isNotEmpty)
+                                    _buildCategorySection("Search Results", _filteredEvents)
+                                  else ...[
+                                    _buildCategorySection(
+                                      "Popular Now",
+                                      _cachedEvents.where((e) =>
+                                      (e['category'] as String?)?.trim() == 'Popular').toList(),
                                     ),
-                                    ElevatedButton.icon(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(builder: (_) => const EventMapScreen()),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.map),
-                                      label: const Text("View Map"),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.blueAccent,
-                                        foregroundColor: Colors.white,
-                                      ),
+                                    _buildCategorySection(
+                                      "Tech & Development",
+                                      _cachedEvents.where((e) =>
+                                      (e['category'] as String?)?.trim() == 'Tech & Development').toList(),
+                                    ),
+                                    _buildCategorySection(
+                                      "Business & Networking",
+                                      _cachedEvents.where((e) =>
+                                      (e['category'] as String?)?.trim() == 'Business & Networking').toList(),
                                     ),
                                   ],
-                                ),
-                                const SizedBox(height: 10),
-                                // Only show non-empty categories.
-                                _buildCategorySection("Popular Now", popularNow),
-                                _buildCategorySection("Tech & Development", techDev),
-                                _buildCategorySection("Business & Networking", business),
-                              ],
-                            );
-                          },
+                                ],
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.blueAccent,
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: false,
-        elevation: 5,
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-          } else if (index == 1) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ExplorePage()));
-          } else if (index == 3) {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationScreen()));
-          }
-          // index 2 or 4: handle if needed.
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Explore'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Alerts'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+                );
+              },
+            ),
+          ],
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          backgroundColor: Colors.white,
+          selectedItemColor: Colors.blueAccent,
+          unselectedItemColor: Colors.grey,
+          showUnselectedLabels: false,
+          elevation: 5,
+          type: BottomNavigationBarType.fixed,
+          currentIndex: 1, // Highlight Explore tab.
+          onTap: (index) {
+            if (index == 0) {
+              Navigator.pop(context, true);
+            } else if (index == 1) {
+              // Already in Explore.
+            } else if (index == 2) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const NotificationScreen()),
+              ).then((_) {
+                if (mounted) setState(() {});
+              });
+            } else if (index == 3) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              ).then((_) {
+                if (mounted) setState(() {});
+              });
+            }
+          },
+          items: const [
+            BottomNavigationBarItem(
+                icon: Icon(Icons.home_filled), label: 'Home'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.explore), label: 'Explore'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.notifications), label: 'Alerts'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.person), label: 'Profile'),
+          ],
+        ),
       ),
     );
   }

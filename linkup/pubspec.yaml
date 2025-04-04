@@ -24,9 +24,12 @@ dependencies:
   flutter_dotenv: ^5.2.1
   cached_network_image: ^3.4.1
   shared_preferences: ^2.5.3
-  mapbox_maps_flutter: ^2.7.0
+  flutter_map: ^8.1.1
+  latlong2: ^0.9.1
   intl: ^0.20.2
   url_launcher: ^6.3.1
+  firebase_messaging: ^15.2.5
+  flutter_local_notifications: ^19.0.0
   change_app_package_name: ^1.0.0
 
 dev_dependencies:

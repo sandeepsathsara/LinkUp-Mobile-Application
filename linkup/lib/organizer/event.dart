@@ -233,35 +233,55 @@ class _OrganizerEventListState extends State<OrganizerEventList> {
           ),
           content: const Text('ARE YOU SURE YOU WANT TO DELETE THIS EVENT?'),
           actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 15.0),
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                  ).then((returnedIndex) {
-                    if (returnedIndex != null && returnedIndex is int) {
-                      setState(() {
-                        _selectedIndex = returnedIndex;
-                      });
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(), // Cancel
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog first
+
+                // Delay ensures the modal is fully closed before showing snackbar
+                Future.delayed(const Duration(milliseconds: 200), () async {
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection('events')
+                        .doc(eventId)
+                        .delete();
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Event deleted successfully'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
                     }
-                  });
-                },
-                child: CircleAvatar(
-                  radius: 18,
-                  backgroundImage: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
-                      ? NetworkImage(_profileImageUrl!)
-                      : const AssetImage('assets/profile.jpg') as ImageProvider,
-                ),
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error deleting event: $e'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  }
+                });
+              },
+              child: const Text(
+                'Delete',
+                style: TextStyle(color: Colors.red),
               ),
             ),
           ],
-
         );
       },
     );
   }
+
+
+
 
   @override
   Widget build(BuildContext context) {

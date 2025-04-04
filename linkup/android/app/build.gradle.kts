@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services") // ✅ Firebase plugin added
 }
@@ -9,11 +8,12 @@ plugins {
 android {
     namespace = "com.tech.linkup"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "27.2.12479018"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true // ✅ Required for Java 8 features
     }
 
     kotlinOptions {
@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId = "com.tech.linkup"
-        minSdk = 23 // ✅ FIXED: Required for firebase_auth 4.6.0+
+        minSdk = 23 // ✅ Required for firebase_auth 4.6.0+
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -33,8 +33,16 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    buildFeatures {
+        viewBinding = true
+    }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5") // ✅ Required for flutter_local_notifications
 }

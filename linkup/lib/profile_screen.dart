@@ -10,6 +10,13 @@ import 'package:linkup/about_app_screen.dart';
 import 'package:linkup/favourite_screen.dart';
 import 'package:linkup/splash_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:linkup/my_profile_screen.dart';
+
+// Simple in-memory cache for the profile image URL
+class ProfileCache {
+  static String? profileImageUrl;
+}
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,18 +37,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _user = FirebaseAuth.instance.currentUser;
     _loadCachedImage().then((_) {
-      _loadUserProfileData();
+      // Only fetch from Firebase if there is no in-memory cache
+      if (ProfileCache.profileImageUrl == null) {
+        _loadUserProfileData();
+      } else {
+        _profileImageUrl = ProfileCache.profileImageUrl;
+        setState(() {
+          _isImageReady = true;
+          _isLoading = false;
+        });
+      }
     });
   }
 
   Future<void> _loadCachedImage() async {
     final prefs = await SharedPreferences.getInstance();
     final cachedUrl = prefs.getString('cachedProfileImageUrl');
+
     if (cachedUrl != null && cachedUrl.isNotEmpty) {
-      setState(() {
-        _profileImageUrl = cachedUrl;
-        _isImageReady = true;
-      });
+      _profileImageUrl = cachedUrl;
+      ProfileCache.profileImageUrl = cachedUrl;
+      _isImageReady = true;
     }
   }
 
@@ -61,11 +77,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final data = doc.data();
         final newUrl = data?['profileImageUrl'] ?? '';
 
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('cachedProfileImageUrl', newUrl);
+        // If the URL has changed or wasn't cached yet, update both SharedPreferences and our in-memory cache
+        if (_profileImageUrl != newUrl) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('cachedProfileImageUrl', newUrl);
+          _profileImageUrl = newUrl;
+          ProfileCache.profileImageUrl = newUrl;
+        }
 
         setState(() {
-          _profileImageUrl = newUrl;
           _isImageReady = true;
           _isLoading = false;
         });
@@ -73,7 +93,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error loading profile: $e');
+      debugPrint('Error loading profile: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -95,8 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-
-              // Only show profile card when image is ready
+              // Display the profile card only when the image is ready
               if (_isImageReady)
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -109,7 +128,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       CircleAvatar(
                         radius: 35,
                         backgroundImage: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
-                            ? NetworkImage(_profileImageUrl!)
+                            ? CachedNetworkImageProvider(_profileImageUrl!)
                             : const AssetImage('assets/profile.jpg') as ImageProvider,
                       ),
                       const SizedBox(width: 16),
@@ -144,35 +163,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               builder: (context) => const EditProfileScreen(),
                             ),
                           );
+                          // Refresh cache after editing profile
                           await _loadCachedImage();
-                          setState(() {}); // To reflect updated data
+                          setState(() {});
                         },
                         icon: const Icon(Icons.edit, color: Colors.white),
                       ),
                     ],
                   ),
                 ),
-
               if (!_isImageReady)
                 const Center(child: CircularProgressIndicator()),
-
               const SizedBox(height: 30),
               _sectionTitle("Account"),
               const SizedBox(height: 10),
               _buildSectionCard([
-                _buildListTile(Icons.person_outline, "My Account", () {}),
+                _buildListTile(Icons.person_outline, "My Account", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const MyProfileScreen()),
+                  );
+                }),
                 _buildListTile(Icons.favorite_border, "Favorites", () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const FavouriteScreen(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const FavouriteScreen()),
                   );
                 }),
                 _buildListTile(Icons.logout, "Log out", () async {
                   await FirebaseAuth.instance.signOut();
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.remove('cachedProfileImageUrl');
+                  ProfileCache.profileImageUrl = null;
                   Navigator.pushAndRemoveUntil(
                     context,
                     MaterialPageRoute(builder: (context) => const SplashScreen()),
@@ -196,29 +218,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: 3, // Correct: Profile is at index 3 now (0 = Home, 1 = Explore, 2 = Alerts, 3 = Profile)
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: false,
         type: BottomNavigationBarType.fixed,
         elevation: 5,
+        onTap: (index) {
+          if (index == 0) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          } else if (index == 1) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ExplorePage()),
+            );
+          } else if (index == 2) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationScreen()),
+            );
+          } // index 3 is Profile - stay here
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
           BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Explore'),
           BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Alerts'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-          if (index == 0) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
-          } else if (index == 1 || index == 2) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ExplorePage()));
-          } else if (index == 3) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const NotificationScreen()));
-          }
-        },
       ),
     );
   }

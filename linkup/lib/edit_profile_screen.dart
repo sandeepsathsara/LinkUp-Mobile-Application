@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -187,8 +188,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   radius: 50,
                   backgroundImage: _imageFile != null
                       ? FileImage(_imageFile!)
-                      : (_uploadedImageUrl != null
-                      ? NetworkImage(_uploadedImageUrl!)
+                      : (_uploadedImageUrl != null && _uploadedImageUrl!.isNotEmpty
+                      ? CachedNetworkImageProvider(_uploadedImageUrl!)
                       : const AssetImage('assets/profile.jpg')) as ImageProvider,
                   child: _imageFile == null && _uploadedImageUrl == null
                       ? const Icon(Icons.camera_alt, size: 50, color: Colors.grey)

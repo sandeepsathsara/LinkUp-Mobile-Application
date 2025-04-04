@@ -1,22 +1,73 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:linkup/explore_screen.dart';
-import 'package:linkup/home_screen.dart';
-import 'package:linkup/profile_screen.dart';
-import 'package:linkup/u_event_details.dart'; // Import Event Detail Screen
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+import 'home_screen.dart';
+import 'explore_screen.dart';
+import 'profile_screen.dart';
+import 'u_event_details.dart';
+
+/// Profile image in-memory cache
+class ProfileCache {
+  static String? profileImageUrl;
+}
+
+/// Event image in-memory cache
+class EventImageCache {
+  static final Map<String, CachedNetworkImageProvider> cache = {};
+}
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
 
   @override
-  _NotificationScreenState createState() => _NotificationScreenState();
+  State<NotificationScreen> createState() => _NotificationScreenState();
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
-  final int _currentIndex = 3; // Active tab (Notifications)
+  final int _currentIndex = 2;
+  User? _user;
+  String? _profileImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _user = FirebaseAuth.instance.currentUser;
+    _loadCachedProfileImage();
+  }
+
+  Future<void> _loadCachedProfileImage() async {
+    // Use in-memory cache if available.
+    if (ProfileCache.profileImageUrl != null) {
+      setState(() {
+        _profileImageUrl = ProfileCache.profileImageUrl;
+      });
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final cachedUrl = prefs.getString('cachedProfileImageUrl');
+    if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      ProfileCache.profileImageUrl = cachedUrl;
+      setState(() => _profileImageUrl = cachedUrl);
+    } else if (_user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_user!.uid)
+          .get();
+      final url = doc.data()?['profileImageUrl'] ?? '';
+      if (url.isNotEmpty) {
+        await prefs.setString('cachedProfileImageUrl', url);
+        ProfileCache.profileImageUrl = url;
+        setState(() => _profileImageUrl = url);
+      }
+    }
+  }
 
   void _onTabTapped(int index) {
-    if (index == _currentIndex) return; // Prevent duplicate navigation
+    if (index == _currentIndex) return;
 
     Widget destination;
     switch (index) {
@@ -27,26 +78,159 @@ class _NotificationScreenState extends State<NotificationScreen> {
         destination = const ExplorePage();
         break;
       case 2:
-        destination = const ExplorePage();
-        break;
-      case 4:
+        return;
+      case 3:
         destination = const ProfileScreen();
         break;
       default:
         return;
     }
-
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => destination),
+      MaterialPageRoute(builder: (_) => destination),
     );
   }
 
-  void _navigateToEventDetail() {
+  void _navigateToEventDetails(Map<String, dynamic> eventData) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const UserEventDetailsScreen(event: {},)),
+      MaterialPageRoute(
+          builder: (_) => UserEventDetailsScreen(event: eventData)),
     );
+  }
+
+  /// Deletes a notification document from Firestore.
+  Future<void> _deleteNotification(String docId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(docId)
+          .delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Notification deleted")),
+      );
+    } catch (e) {
+      debugPrint("Error deleting notification: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to delete notification")),
+      );
+    }
+  }
+
+  /// Marks a notification as read by updating its 'read' field in Firestore.
+  Future<void> _markNotificationAsRead(String docId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(docId)
+          .update({'read': true});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Notification marked as read")),
+      );
+    } catch (e) {
+      debugPrint("Error marking notification as read: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to mark as read")),
+      );
+    }
+  }
+
+  Widget _buildNotificationCard(Map<String, dynamic> data, String docId) {
+    final String title = data['title'] ?? 'Event Update';
+    final IconData icon = _getIcon(data['category']);
+    final Map<String, dynamic> event = data['event'] ?? {};
+    final bool isRead = data['read'] ?? false;
+    final String? imageUrl = event['imageUrl'];
+
+    ImageProvider imageProvider;
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      if (EventImageCache.cache.containsKey(imageUrl)) {
+        imageProvider = EventImageCache.cache[imageUrl]!;
+      } else {
+        final cached = CachedNetworkImageProvider(imageUrl);
+        EventImageCache.cache[imageUrl] = cached;
+        imageProvider = cached;
+      }
+    } else {
+      imageProvider = const AssetImage('assets/notifi.png');
+    }
+
+    return Dismissible(
+      key: Key(docId),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: Colors.red,
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      onDismissed: (_) => _deleteNotification(docId),
+      child: GestureDetector(
+        onTap: () => _navigateToEventDetails(event),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 30, color: Colors.blueAccent),
+              const SizedBox(width: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image(
+                  image: imageProvider,
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (!isRead)
+                      TextButton.icon(
+                        onPressed: () => _markNotificationAsRead(docId),
+                        icon: const Icon(Icons.mark_email_read, size: 16),
+                        label: const Text(
+                          "Mark as read",
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _getIcon(String? category) {
+    switch (category) {
+      case 'Tech & Development':
+        return Icons.computer;
+      case 'Business & Networking':
+        return Icons.business_center;
+      case 'Security':
+        return Icons.security;
+      default:
+        return Icons.event;
+    }
   }
 
   @override
@@ -67,49 +251,46 @@ class _NotificationScreenState extends State<NotificationScreen> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
                 );
               },
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 22,
-                backgroundImage: AssetImage('assets/profile.jpg'),
+                backgroundImage: _profileImageUrl != null &&
+                    _profileImageUrl!.isNotEmpty
+                    ? CachedNetworkImageProvider(_profileImageUrl!)
+                    : const AssetImage('assets/profile.jpg') as ImageProvider,
               ),
             ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(15.0),
-        child: ListView(
-          children: [
-            _buildNotificationCard(
-              Icons.computer,
-              "International Conference on Computer Systems Engineering and Technology",
-            ),
-            _buildNotificationCard(
-              Icons.lightbulb,
-              "AI and Machine Learning Summit 2025",
-            ),
-            _buildNotificationCard(
-              Icons.security,
-              "Cyber Security & Ethical Hacking Workshop",
-            ),
-            _buildNotificationCard(
-              Icons.cloud,
-              "Big Data and Cloud Computing Expo",
-            ),
-            _buildNotificationCard(
-              Icons.device_hub,
-              "IoT and Smart Devices Conference",
-            ),
-            _buildNotificationCard(
-              Icons.currency_bitcoin,
-              "Blockchain & Cryptocurrency Forum",
-            ),
-          ],
-        ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('notifications')
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return const Center(child: Text("No notifications yet."));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(15),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+              final docId = doc.id;
+              return _buildNotificationCard(data, docId);
+            },
+          );
+        },
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -120,54 +301,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
         type: BottomNavigationBarType.fixed,
         onTap: _onTabTapped,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Explore'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Alerts',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+              icon: Icon(Icons.home_filled), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.explore), label: 'Explore'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.notifications), label: 'Alerts'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person), label: 'Profile'),
         ],
-      ),
-    );
-  }
-
-  Widget _buildNotificationCard(IconData icon, String eventTitle) {
-    return GestureDetector(
-      onTap: _navigateToEventDetail, // Navigate to Event Detail Screen on tap
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 30, color: Colors.blueAccent),
-            const SizedBox(width: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'assets/notifi.png',
-                width: 60,
-                height: 60,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                eventTitle,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

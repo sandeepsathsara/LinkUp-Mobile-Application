@@ -7,7 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart'; // For formatting date/time
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class AddEventScreen extends StatefulWidget {
   const AddEventScreen({super.key});
@@ -17,6 +18,7 @@ class AddEventScreen extends StatefulWidget {
 }
 
 class _AddEventScreenState extends State<AddEventScreen> {
+  final MapController _mapController = MapController();
   final eventNameController = TextEditingController();
   final descriptionController = TextEditingController();
   final dateController = TextEditingController();
@@ -36,20 +38,13 @@ class _AddEventScreenState extends State<AddEventScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
 
-  late MapboxMap _mapboxMap;
-  PointAnnotationManager? _annotationManager;
-
   /// For showing/hiding the loading dialog
   bool _isUploading = false;
 
   @override
   void initState() {
     super.initState();
-    // Set access token if provided via environment variable.
-    const token = String.fromEnvironment("ACCESS_TOKEN");
-    if (token.isNotEmpty) {
-      MapboxOptions.setAccessToken(token);
-    }
+    // Removed Mapbox access token initialization since we are not using Mapbox.
   }
 
   /// Confirm exit if user tries to go back with unsaved data.
@@ -151,11 +146,15 @@ class _AddEventScreenState extends State<AddEventScreen> {
       );
       return;
     }
+
     _showLoadingDialog();
+
     try {
       await _uploadToCloudinary();
       final uid = _auth.currentUser?.uid;
-      await _firestore.collection('events').add({
+
+      // 1. Prepare event data
+      final eventData = {
         'uid': uid,
         'eventName': eventNameController.text.trim(),
         'description': descriptionController.text.trim(),
@@ -164,15 +163,51 @@ class _AddEventScreenState extends State<AddEventScreen> {
         'venue': venueController.text.trim(),
         'registrationLink': linkController.text.trim(),
         'payment': paymentController.text.trim(),
-        'category': _selectedCategory, // Save the category here.
+        'category': _selectedCategory,
         'imageUrl': _uploadedImageUrl,
         'location': GeoPoint(selectedLatitude!, selectedLongitude!),
         'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      // 2. Save to `events` collection
+      final eventRef = await _firestore.collection('events').add(eventData);
+
+      // 3. Add notification to `notifications` collection
+      await _firestore.collection('notifications').add({
+        'title': "New Event Added: ${eventData['eventName']}",
+        'category': _selectedCategory,
+        'createdAt': FieldValue.serverTimestamp(),
+        'event': {
+          'id': eventRef.id,
+          'eventName': eventData['eventName'],
+          'date': eventData['date'],
+          'venue': eventData['venue'],
+          'imageUrl': eventData['imageUrl'],
+          'description': eventData['description'],
+          'category': eventData['category'],
+        },
       });
+
+      // 🔔 Send push notification to users
+      try {
+        await Dio().post(
+          'http://54.153.235.2:5000/send',
+          options: Options(headers: {'Content-Type': 'application/json'}),
+          data: {
+            "title": "🚀 New Event: ${eventData['eventName']}",
+            "body": "Don't miss out! Happening at ${eventData['venue']} on ${eventData['date']}.",
+          },
+        );
+      } catch (e) {
+        debugPrint("Notification send failed: $e");
+      }
+
       _hideLoadingDialog();
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Event added successfully")),
       );
+
       Navigator.pop(context);
     } catch (e) {
       _hideLoadingDialog();
@@ -189,70 +224,82 @@ class _AddEventScreenState extends State<AddEventScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext sheetContext) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Column(
-              children: [
-                Expanded(
-                  child: MapWidget(
-                    key: const ValueKey("map_popup"),
-                    styleUri: MapboxStyles.MAPBOX_STREETS,
-                    textureView: true,
-                    cameraOptions: CameraOptions(
-                      center: Point(coordinates: Position(80.7718, 7.8731)),
-                      zoom: 5,
-                    ),
-                    onMapCreated: (mapboxMap) async {
-                      _mapboxMap = mapboxMap;
-                      _annotationManager = await _mapboxMap.annotations.createPointAnnotationManager();
-                    },
-                    onTapListener: (MapContentGestureContext gestureContext) async {
-                      final point = gestureContext.point;
-                      final lat = (point.coordinates[1] as num).toDouble();
-                      final lng = (point.coordinates[0] as num).toDouble();
-                      setState(() {
-                        selectedLatitude = lat;
-                        selectedLongitude = lng;
-                      });
-                      _annotationManager?.deleteAll();
-                      final ByteData imageData = await rootBundle.load('assets/red_marker.png');
-                      Uint8List markerImage = imageData.buffer.asUint8List();
-                      await _annotationManager?.create(
-                        PointAnnotationOptions(
-                          geometry: Point(coordinates: Position(lng, lat)),
-                          image: markerImage,
+        LatLng? tappedLocation;
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: FlutterMap(
+                        mapController: _mapController,
+                        options: MapOptions(
+                          initialCenter: LatLng(7.8731, 80.7718),
+                          initialZoom: 5,
+                          onLongPress: (tapPosition, latlng) { // 👈 changed to long press
+                            setModalState(() {
+                              tappedLocation = latlng;
+                            });
+                            setState(() {
+                              selectedLatitude = latlng.latitude;
+                              selectedLongitude = latlng.longitude;
+                            });
+                          },
                         ),
-                      );
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(sheetContext);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        children: [
+                          TileLayer(
+                            urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                            subdomains: const ['a', 'b', 'c'],
+                          ),
+                          MarkerLayer(
+                            markers: tappedLocation != null
+                                ? [
+                              Marker(
+                                point: tappedLocation!,
+                                width: 40,
+                                height: 40,
+                                child: Image.asset(
+                                  'assets/red_marker.png',
+                                  width: 40,
+                                  height: 40,
+                                ),
+                              )
+                            ]
+                                : [],
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Text(
-                      "Confirm Location",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                )
-              ],
-            ),
-          ),
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          "Confirm Location",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );

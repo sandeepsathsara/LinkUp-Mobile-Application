@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:linkup/forgot_password_screen.dart';
 import 'org_singup.dart';
 import 'event.dart';
 
@@ -155,7 +156,10 @@ class _OrgLoginScreenState extends State<OrgLoginScreen> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            // Implement if needed
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                            );
                           },
                           child: const Text('Forgot Password?'),
                         ),
